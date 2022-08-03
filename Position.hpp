@@ -23,6 +23,9 @@
 #include <cstdint>
 #include <cassert>
 
+#include <arm_neon.h>
+
+
 namespace GameSolver {
 namespace Connect4 {
 /**
@@ -297,36 +300,67 @@ class Position {
    *
    * @return a bitmap of all the winning free spots making an alignment
    */
-  static position_t compute_winning_position(position_t position, position_t mask) {
-    // vertical;
-    position_t r = (position << 1) & (position << 2) & (position << 3);
 
-    //horizontal
-    position_t p = (position << (HEIGHT + 1)) & (position << 2 * (HEIGHT + 1));
-    r |= p & (position << 3 * (HEIGHT + 1));
-    r |= p & (position >> (HEIGHT + 1));
-    p = (position >> (HEIGHT + 1)) & (position >> 2 * (HEIGHT + 1));
-    r |= p & (position << (HEIGHT + 1));
-    r |= p & (position >> 3 * (HEIGHT + 1));
 
-    //diagonal 1
-    p = (position << HEIGHT) & (position << 2 * HEIGHT);
-    r |= p & (position << 3 * HEIGHT);
-    r |= p & (position >> HEIGHT);
-    p = (position >> HEIGHT) & (position >> 2 * HEIGHT);
-    r |= p & (position << HEIGHT);
-    r |= p & (position >> 3 * HEIGHT);
+  static position_t compute_winning_position(position_t position, position_t mask){ 
+    //counter ++;
+    //vertical
+    position_t r = (position << 1L) & (position << 2L) & (position << 3L);
 
-    //diagonal 2
-    p = (position << (HEIGHT + 2)) & (position << 2 * (HEIGHT + 2));
-    r |= p & (position << 3 * (HEIGHT + 2));
-    r |= p & (position >> (HEIGHT + 2));
-    p = (position >> (HEIGHT + 2)) & (position >> 2 * (HEIGHT + 2));
-    r |= p & (position << (HEIGHT + 2));
-    r |= p & (position >> 3 * (HEIGHT + 2));
+    uint64x2_t pp = {position, position};
 
-    return r & (board_mask ^ mask);
-  }
+    
+    int64x2_t s7 = {7, -7};
+    uint64x2_t p7 = vshlq_u64(pp,s7);
+    int64x2_t s14 = {14, -14};
+    uint64x2_t p14 = vshlq_u64(pp,s14);
+    int64x2_t s21 = {21, -21};
+    uint64x2_t p21 = vshlq_u64(pp,s21);
+
+    uint64x2_t s = vandq_u64(p7,p14);
+    uint64x2_t pand21 = vandq_u64(s,p21);
+    uint64x2_t p7swap = {(position_t)vget_high_u64(p7),(position_t)vget_low_u64(p7) };
+    uint64x2_t pand7 = vandq_u64(s,p7swap);
+
+    uint64x2_t r1 = vorrq_u64(pand7, pand21);
+
+    int64x2_t s6 = {6, -6};
+    uint64x2_t p6 = vshlq_u64(pp,s6);
+    int64x2_t s12 = {12, -12};
+    uint64x2_t p12 = vshlq_u64(pp,s12);
+    int64x2_t s18 = {18, -18};
+    uint64x2_t p18 = vshlq_u64(pp,s18);
+
+    s = vandq_u64(p6,p12);
+    uint64x2_t pand18 = vandq_u64(s,p18);
+    uint64x2_t p6swap = {(position_t)vget_high_u64(p6),(position_t)vget_low_u64(p6) };
+    uint64x2_t pand6 = vandq_u64(s,p6swap);
+
+    uint64x2_t r2 = vorrq_u64(pand18, pand6);
+
+    int64x2_t s8 = {8, -8};
+    uint64x2_t p8 = vshlq_u64(pp,s8);
+    int64x2_t s16 = {16, -16};
+    uint64x2_t p16 = vshlq_u64(pp,s16);
+    int64x2_t s24 = {24, -24};
+    uint64x2_t p24 = vshlq_u64(pp,s24);
+
+    s = vandq_u64(p8,p16);
+    uint64x2_t pand24 = vandq_u64(s,p24);
+    uint64x2_t p8swap = {(position_t)vget_high_u64(p8),(position_t)vget_low_u64(p8) };
+    uint64x2_t pand8 = vandq_u64(s,p8swap);
+
+    uint64x2_t r3 = vorrq_u64(pand8, pand24);
+    uint64x2_t r4 = vorrq_u64(r1, r2);
+    uint64x2_t r5 = vorrq_u64(r3, r4);
+
+
+    r |= (position_t)vget_low_u64(r5) | (position_t)vget_high_u64(r5);
+
+    return r & (279258638311359L ^ mask);
+}
+  
+
 
   // Static bitmaps
   template<int width, int height> struct bottom {static constexpr position_t mask = bottom<width-1, height>::mask | position_t(1) << (width - 1) * (height + 1);};
