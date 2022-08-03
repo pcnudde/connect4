@@ -19,6 +19,7 @@
 #include <cassert>
 #include "Solver.hpp"
 #include "MoveSorter.hpp"
+#include <future>
 
 using namespace GameSolver::Connect4;
 
@@ -127,15 +128,21 @@ int Solver::solve(const Position &P, bool weak) {
 
 std::vector<int> Solver::analyze(const Position &P, bool weak) {
   std::vector<int> scores(Position::WIDTH, Solver::INVALID_MOVE);
+  std::vector<std::future<int>> neg_scores_future(Position::WIDTH);
+
   for (int col = 0; col < Position::WIDTH; col++)
     if (P.canPlay(col)) {
       if(P.isWinningMove(col)) scores[col] = (Position::WIDTH * Position::HEIGHT + 1 - P.nbMoves()) / 2;
       else {
+        Solver *s = new Solver(); // keep transposition tables separate (so each thread has it's own
         Position P2(P);
         P2.playCol(col);
-        scores[col] = -solve(P2, weak);
+        neg_scores_future[col] = std::async(std::launch::async,&Solver::solve,s,P2, weak);
       }
     }
+  // collect results
+  for (int col = 0; col < Position::WIDTH; col++) 
+    if (neg_scores_future[col].valid()) scores[col] = -neg_scores_future[col].get();
   return scores;
 }
 
