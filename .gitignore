@@ -29,3 +29,5 @@
 
 # vim swap file
 *.swp
+c4solver
+.depend
