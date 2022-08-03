@@ -40,6 +40,19 @@ We need to make sure we keep multiple transposition tables, one per thread. Both
 
 Almost a 4x increase using 8 threads. We did not expect 8x as the slowest of the 7 moves (the winning middle move) takes 90 sec to compute alone, and there is relatively high memory bandwith to the transposition table.
 
+# Step 3. Let's play with the memory.
+We have more memory, so let's see if things improve if in increase or decrease. It is not clear what will be better, for this algorithm I have seen on some CPUs that smaller tables that fit in cache are better that larger tables in main memory. But the M1 has very good memory bandwidth so lets see. 
+
+In our case using the maximum memory helps. So with 40GB we improve with another 170% to get almost at 1 min.
+
+| Experiment | Memory (GB) | Duration (sec) | Speedup
+| --- | --- | --- | --- |
+| Baseline | | 402 | | 
+| Multithreaded |  0.650 | 112 | 350% |
+| Multithreaded (small) | 0.04 | 240 | |
+| Multithreaded (big) | 40 | 65 | 170% |
+
+
 
  
 
