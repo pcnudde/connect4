@@ -68,7 +68,7 @@ We are now below the magical 1 min mark. While the new function actually is twic
 Now it get's harder as the low hanging fruit is kind of gone. I tried various things:
 
 * use -Ofast optimization: no difference
-* replace popcount with built in optimized version. less than 0.5 sec improvement
+* replace popcount with [built in optimized version](https://github.com/pcnudde/connect4/commit/038153b685a86c3064232047235ac0cbbaf2d922#diff-2217d624822064f23bf5930540d7716ed3f1f7d6c43ed89d0a454cc83fa67cbf). less than 0.5 sec improvement
 * switch to clang: less than 0.5 sec improvement
 
 There probably is some more things to do, but I don't think there is that much more in it. 
