@@ -288,11 +288,9 @@ class Position {
   /**
    * counts number of bit set to one in a 64bits integer
    */
-  static unsigned int popcount(position_t m) {
-    unsigned int c = 0;
-    for(c = 0; m; c++) m &= m - 1;
-    return c;
-  }
+  
+  static unsigned int popcount(uint64_t x) { return __builtin_popcountll(x); }
+
 
   /**
    * @parmam position, a bitmap of the player to evaluate the winning pos

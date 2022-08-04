@@ -134,7 +134,7 @@ std::vector<int> Solver::analyze(const Position &P, bool weak) {
     if (P.canPlay(col)) {
       if(P.isWinningMove(col)) scores[col] = (Position::WIDTH * Position::HEIGHT + 1 - P.nbMoves()) / 2;
       else {
-        Solver *s = new Solver(); // keep transposition tables separate (so each thread has it's own
+        Solver *s = new Solver(); // keep transposition tables separate (so each thread has it's own)
         Position P2(P);
         P2.playCol(col);
         neg_scores_future[col] = std::async(std::launch::async,&Solver::solve,s,P2, weak);

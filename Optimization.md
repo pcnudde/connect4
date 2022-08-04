@@ -29,7 +29,7 @@ Unable to load opening book: 7x6.book
 
 ## Step 2. The obvious. Let's make it multithreaded.
 Given that the the analysis code processes all 7 positions independently and we have 8 cores we should get a nice speedup.
-C++ futures/async makes making this multithreaded pretty easy.
+C++ futures/async makes making this multithreaded [pretty easy](https://github.com/pcnudde/connect4/commit/0c16303d792054acfc39e71f69bad816897544a0#diff-f0068c48beb298a9e249776ef8175a18e8958896b0be6c81a3cf73f450a35350).
 We need to make sure we keep multiple transposition tables, one per thread. Both because the table is not threadsafe, but even if it were it is likely much faster to have separate ones.
 
 
@@ -43,7 +43,7 @@ Almost a 4x increase using 8 threads. We did not expect 8x as the slowest of the
 ## Step 3. Let's play with the memory.
 We have more memory, so let's see if things improve if in increase or decrease. It is not clear what will be better, for this algorithm I have seen on some CPUs that smaller tables that fit in cache are better that larger tables in main memory. But the M1 has very good memory bandwidth so lets see. 
 
-In our case using the maximum memory helps. So with 40GB we improve with another 170% to get almost at 1 min.
+In our case using the [maximum memory[(https://github.com/pcnudde/connect4/commit/6e49b82747b4c307f5f86a06608c45dad7f3cd49#diff-304adfca6c3c2f30bfaabb24f52c8ef03ce929e5b6232cf449431ec6fae90cc8)] helps. So with 40GB we improve with another 170% to get almost at 1 min.
 
 | Experiment | Memory (GB) | Duration (sec) | Speedup
 | --- | --- | --- | --- |
@@ -53,7 +53,7 @@ In our case using the maximum memory helps. So with 40GB we improve with another
 | Multithreaded (big) | 40 | 65 | 70% |
 
 ## Step 4. What about some SIMD?
-This is not the obvious application for SIMD, but the key function that get's called most often 'compute_winning_position' is very heavy on bit operations, and if we can do 128 bit in parallel instead of 64 there might be some benefit. The M1 processor supports ARM NEON instruction set with 128 bit. Instead of coding the function completely in assembly I decided just ot use Neon intrinsics. This enables me to stay in C++ and not having to do manual register allocation while getting most of the benefit.
+This is not the obvious application for SIMD, but the key function that get's called most often 'compute_winning_position' is very heavy on bit operations, and if we can do 128 bit in parallel instead of 64 there might be some benefit. The M1 processor supports ARM NEON instruction set with 128 bit. Instead of coding the function completely in assembly I decided just ot use Neon intrinsics. This enables me to [stay in C++](https://github.com/pcnudde/connect4/commit/7b9a9331b2eca1536c68320fc4a03286d9833e4e#diff-2217d624822064f23bf5930540d7716ed3f1f7d6c43ed89d0a454cc83fa67cbf) and not having to do manual register allocation while getting most of the benefit.
 
 | Experiment | Memory (GB) | Duration (sec) | Speedup
 | --- | --- | --- | --- |
@@ -64,13 +64,31 @@ This is not the obvious application for SIMD, but the key function that get's ca
 
 We are now below the magical 1 min mark. While the new function actually is twice as fast as the old one (I timed it separately) the overall benefit is only 14%. In general this would not be worth it, but here we are going for speed.
 
+## Step 5. Smaller things.
+Now it get's harder as the low hanging fruit is kind of gone. I tried various things:
+
+* use -Ofast optimization: no difference
+* replace popcount with built in optimized version. less than 0.5 sec improvement
+* switch to clang: less than 0.5 sec improvement
+
+There probably is some more things to do, but I don't think there is that much more in it. 
+Maybe a totally different approach that is not strictly doing an optimized negamax, but employs the GPU to evaluate in parallel many more positions at a higher speed could improve on this.
 
 
+| Experiment | Memory (GB) | Duration (sec) | Speedup
+| --- | --- | --- | --- |
+| Baseline | | 402 | | 
+| Multithreaded |  0.650 | 112 | 3.5x |
+| Multithreaded (big) | 40 | 65 | 70% |
+| Neon SIMD | 40 | 57 | 14% | 
+| Final| 40 | 56 | 1% | 
 
+## Conclusion.
+It was fun to see how fast this algorithm could run on a modern CPU. One minute is a pretty nice result.
 
-
-
- 
-
-
+```
+time echo "" | ./c4solver -a
+ -2 -1 0 1 0 -1 -2
+./c4solver -a  257.02s user 4.77s system 465% cpu 56.271 total
+```
 

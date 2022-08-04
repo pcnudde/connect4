@@ -1,5 +1,5 @@
-CXX=g++
-CXXFLAGS=--std=c++11 -W -Wall -O3 -DNDEBUG
+CXX=clang++
+CXXFLAGS=--std=c++11 -W -Wall -Ofast -DNDEBUG
 
 SRCS=Solver.cpp
 OBJS=$(subst .cpp,.o,$(SRCS))
