@@ -9,13 +9,13 @@ I wanted to see how long it takes on a modern processor to 'solve' connect4 from
 As a comparison in 1995 it took [John Tromp](https://tromp.github.io/c4/c4.htm) 40000 hours on Sun and SGI workstations. In this repo I'm going to show it now takes less than a minute on my macbook pro (M1 Max). And because Pascal Pons' code is so clear and simple I'm starting from his solution.
 
 ## Setup
-All benchmarks will be run on my 2021 macbook pro with an M1 Max processor. (8 performance cores, 2 efficiency cores and 64GB memory)
+All benchmarks are run on my 2021 macbook pro with an M1 Max processor. (8 performance cores, 2 efficiency cores and 64GB memory)
 
 ## Step 1. A Baseline
 Just run the code as is.
 
 ```
-% git clone git@github.com:pcnudde/connect4.git
+% git clone https://github.com/PascalPons/connect4.git
 % make
 % time echo "" | ./c4solver -a
 Unable to load opening book: 7x6.book
@@ -25,61 +25,63 @@ Unable to load opening book: 7x6.book
 
 | Experiment | Duration (sec) |
 | --- | --- |
-| Baseline | 402 |
+| Baseline | 403 |
 
-## Step 2. The obvious. Let's make it multithreaded.
-Given that the the analysis code processes all 7 positions independently and we have 8 cores we should get a nice speedup.
-C++ futures/async makes making this multithreaded [pretty easy](https://github.com/pcnudde/connect4/commit/0c16303d792054acfc39e71f69bad816897544a0#diff-f0068c48beb298a9e249776ef8175a18e8958896b0be6c81a3cf73f450a35350).
-We need to make sure we keep multiple transposition tables, one per thread. Both because the table is not threadsafe, but even if it were it is likely much faster to have separate ones.
+This is already an amazingly fast starting point.
+
+## Step 2. The obvious: Let's make it multithreaded.
+Given that the the analysis code processes all 7 positions independently and that we have 8 cores, we should get a nice speedup.
+C++ futures/async feature makes making this multithreaded [pretty easy](https://github.com/pcnudde/connect4/commit/0c16303d792054acfc39e71f69bad816897544a0#diff-f0068c48beb298a9e249776ef8175a18e8958896b0be6c81a3cf73f450a35350).
+We need to make sure we keep multiple transposition tables, one per thread. Both because the table is not threadsafe, but even if it were it is much faster to have separate ones.
 
 
 | Experiment | Duration (sec) | Speedup
 | --- | --- | --- |
-| Baseline | 402 | | 
-| Multithreaded |  0.650 | 112 | 3.5x |
+| Baseline | 403 | | 
+| Multithreaded | 112 | 3.5x |
 
-Almost a 4x increase using 8 threads. We did not expect 8x as the slowest of the 7 moves (the winning middle move) takes 90 sec to compute alone, and there is relatively high memory bandwith to the transposition table.
+Almost a 4x increase using 7 threads. We did not expect 7x as the slowest of the 7 moves (the winning middle move) takes 90 sec to compute alone, and there is relatively high memory bandwidth to the transposition tables.
 
 ## Step 3. Let's play with the memory.
-We have more memory, so let's see if things improve if in increase or decrease. It is not clear what will be better, for this algorithm I have seen on some CPUs that smaller tables that fit in cache are better that larger tables in main memory. But the M1 has very good memory bandwidth so lets see. 
+We have more memory, so let's see if things improve if in increase or decrease the size of the transposition table. It is not clear ahead of time what will be better. For this algorithm, I have seen on some CPUs that smaller tables that fit in cache are better than larger tables in main memory. But the M1 has very good memory bandwidth. 
 
-In our case using the [maximum memory[(https://github.com/pcnudde/connect4/commit/6e49b82747b4c307f5f86a06608c45dad7f3cd49#diff-304adfca6c3c2f30bfaabb24f52c8ef03ce929e5b6232cf449431ec6fae90cc8)] helps. So with 40GB we improve with another 170% to get almost at 1 min.
+In our case using the [maximum memory](https://github.com/pcnudde/connect4/commit/6e49b82747b4c307f5f86a06608c45dad7f3cd49#diff-304adfca6c3c2f30bfaabb24f52c8ef03ce929e5b6232cf449431ec6fae90cc8) helps. So with 40GB, we improve with another 70% to get almost to 1 min.
 
 | Experiment | Memory (GB) | Duration (sec) | Speedup
 | --- | --- | --- | --- |
-| Baseline | | 402 | | 
+| Baseline | | 403 | | 
 | Multithreaded |  0.650 | 112 | 3.5x |
-| Multithreaded (small) | 0.04 | 240 | |
-| Multithreaded (big) | 40 | 65 | 70% |
+| Multithreaded (small table) | 0.04 | 240 | |
+| Multithreaded (big table) | 40 | 65 | 70% |
 
 ## Step 4. What about some SIMD?
-This is not the obvious application for SIMD, but the key function that get's called most often 'compute_winning_position' is very heavy on bit operations, and if we can do 128 bit in parallel instead of 64 there might be some benefit. The M1 processor supports ARM NEON instruction set with 128 bit. Instead of coding the function completely in assembly I decided just ot use Neon intrinsics. This enables me to [stay in C++](https://github.com/pcnudde/connect4/commit/7b9a9331b2eca1536c68320fc4a03286d9833e4e#diff-2217d624822064f23bf5930540d7716ed3f1f7d6c43ed89d0a454cc83fa67cbf) and not having to do manual register allocation while getting most of the benefit.
+This is not the obvious application for SIMD, but the key function that gets called most often, _compute_winning_position_, is very heavy on bit operations, and if we can do 128 bit in parallel instead of 64 there might be some benefit. The M1 processor supports ARM NEON instruction set with 128 bit. Instead of coding the function completely in assembly, I decided just to use Neon [intrinsics](https://developer.arm.com/documentation/102467/0100/Why-Neon-Intrinsics-). This enables me to [stay in C++](https://github.com/pcnudde/connect4/commit/7b9a9331b2eca1536c68320fc4a03286d9833e4e#diff-2217d624822064f23bf5930540d7716ed3f1f7d6c43ed89d0a454cc83fa67cbf) and not having to do manual register allocation while getting most of the benefit.
 
 | Experiment | Memory (GB) | Duration (sec) | Speedup
 | --- | --- | --- | --- |
 | Baseline | | 402 | | 
 | Multithreaded |  0.650 | 112 | 3.5x |
-| Multithreaded (big) | 40 | 65 | 70% |
+| Multithreaded (big table) | 40 | 65 | 70% |
 | Neon SIMD | 40 | 57 | 14% | 
 
-We are now below the magical 1 min mark. While the new function actually is twice as fast as the old one (I timed it separately) the overall benefit is only 14%. In general this would not be worth it, but here we are going for speed.
+We are now below the magical 1 min mark. While the new function actually is twice as fast as the old one (I timed it separately), the overall benefit is only 14%. In general, this would not be worth it, but here we are going for speed.
 
 ## Step 5. Smaller things.
-Now it get's harder as the low hanging fruit is kind of gone. I tried various things:
+Now it gets harder as the low hanging fruit is gone. I tried various things:
 
 * use -Ofast optimization: no difference
-* replace popcount with [built in optimized version](https://github.com/pcnudde/connect4/commit/038153b685a86c3064232047235ac0cbbaf2d922#diff-2217d624822064f23bf5930540d7716ed3f1f7d6c43ed89d0a454cc83fa67cbf). less than 0.5 sec improvement
-* switch to clang: less than 0.5 sec improvement
+* replace popcount with a [built in optimized version](https://github.com/pcnudde/connect4/commit/038153b685a86c3064232047235ac0cbbaf2d922#diff-2217d624822064f23bf5930540d7716ed3f1f7d6c43ed89d0a454cc83fa67cbf). less than 0.5 sec improvement
+* switch from gcc to clang: less than 0.5 sec improvement
 
-There probably is some more things to do, but I don't think there is that much more in it. 
-Maybe a totally different approach that is not strictly doing an optimized negamax, but employs the GPU to evaluate in parallel many more positions at a higher speed could improve on this.
+There probably are some more things to do, but I don't think there is that much more optimization possible. 
+My guess is that a totally different approach is needed to go faster. Don't do an optimized negamax, but employ the GPU to evaluate in parallel many more positions at a higher speed. Maybe this is a good time to learn some CUDA or Metal programming :). I wonder if 10 seconds is possible!
 
 
 | Experiment | Memory (GB) | Duration (sec) | Speedup
 | --- | --- | --- | --- |
 | Baseline | | 402 | | 
 | Multithreaded |  0.650 | 112 | 3.5x |
-| Multithreaded (big) | 40 | 65 | 70% |
+| Multithreaded (big table) | 40 | 65 | 70% |
 | Neon SIMD | 40 | 57 | 14% | 
 | Final| 40 | 56 | 1% | 
 
@@ -91,4 +93,6 @@ time echo "" | ./c4solver -a
  -2 -1 0 1 0 -1 -2
 ./c4solver -a  257.02s user 4.77s system 465% cpu 56.271 total
 ```
+
+The complete code can be found [here](https://github.com/pcnudde/connect4/tree/optimized).
 
