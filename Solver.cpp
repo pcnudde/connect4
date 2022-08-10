@@ -126,23 +126,58 @@ int Solver::solve(const Position &P, bool weak) {
   return min;
 }
 
+/*
+function MTDF(root : node_type; f : integer; d : integer) : integer;
+
+g := f;
+upperbound := +INFINITY;
+lowerbound := -INFINITY;
+repeat
+  if g == lowerbound then beta := g + 1 else beta := g;
+  g := AlphaBetaWithMemory(root, beta - 1, beta, d);
+  if g < beta then upperbound := g else lowerbound := g;
+until lowerbound >= upperbound;
+return g;
+*/
+
+int Solver::solveMTDF(const Position &P) {
+  if(P.canWinNext()) // check if win in one move as the Negamax function does not support this case.
+    return (Position::WIDTH * Position::HEIGHT + 1 - P.nbMoves()) / 2;
+  
+  int g = 0;
+  int lowerbound = -(Position::WIDTH * Position::HEIGHT - P.nbMoves()) / 2;
+  int upperbound = (Position::WIDTH * Position::HEIGHT + 1 - P.nbMoves()) / 2;
+
+  while(true) {
+    int beta = (g == lowerbound) ? g+1 :g ;
+    g = negamax(P, beta - 1, beta);
+    if (g < beta) upperbound=g; else lowerbound = g;
+    if (lowerbound >= upperbound) break;
+  }
+  return g;
+}
+
+
 std::vector<int> Solver::analyze(const Position &P, bool weak) {
   std::vector<int> scores(Position::WIDTH, Solver::INVALID_MOVE);
   std::vector<std::future<int>> neg_scores_future(Position::WIDTH);
-
-  for (int col = 0; col < Position::WIDTH; col++)
+  // exploit symmetry
+  for (int col = 0; col < Position::WIDTH/2+1; col++)
     if (P.canPlay(col)) {
       if(P.isWinningMove(col)) scores[col] = (Position::WIDTH * Position::HEIGHT + 1 - P.nbMoves()) / 2;
       else {
         Solver *s = new Solver(); // keep transposition tables separate (so each thread has it's own)
         Position P2(P);
         P2.playCol(col);
-        neg_scores_future[col] = std::async(std::launch::async,&Solver::solve,s,P2, weak);
+        neg_scores_future[col] = std::async(std::launch::async,&Solver::solveMTDF,s,P2);
       }
     }
   // collect results
-  for (int col = 0; col < Position::WIDTH; col++) 
+  for (int col = 0; col < Position::WIDTH/2+1; col++) 
     if (neg_scores_future[col].valid()) scores[col] = -neg_scores_future[col].get();
+  // get all data  
+  for (int col = 0; col < Position::WIDTH/2; col++)
+    scores[Position::WIDTH-1-col] = scores[col];
   return scores;
 }
 

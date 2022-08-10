@@ -54,6 +54,7 @@ class Solver {
 
   // Returns the score of a position
   int solve(const Position &P, bool weak = false);
+  int solveMTDF(const Position &P);
 
   // Returns the score off all possible moves of a position as an array.
   // Returns INVALID_MOVE for unplayable columns

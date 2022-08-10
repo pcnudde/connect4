@@ -85,6 +85,26 @@ My guess is that a totally different approach is needed to go faster. Don't do a
 | Neon SIMD | 40 | 57 | 14% | 
 | Final| 40 | 56 | 1% | 
 
+
+## Step 6. Feedback from Kaggle.
+I posted this on kaggle and got some new ideas from Tony Robinson:
+
+* Exploit symmetry in opening position. We only have to evaluate 4 positions and not all 7. 3 second gain. But we can probably leverage more threads later in the compute as we have 8 cores.
+* [MTD(f)](https://people.csail.mit.edu/plaat/mtdf.html) 
+
+
+| Experiment | Memory (GB) | Duration (sec) | Speedup
+| --- | --- | --- | --- |
+| Baseline | | 402 | | 
+| Multithreaded |  0.650 | 112 | 3.5x |
+| Multithreaded (big table) | 40 | 65 | 70% |
+| Neon SIMD | 40 | 57 | 14% | 
+| Final| 40 | 56 | 1% | 
+| Symmetry | 25 | 53 | 5% | 
+| MTD(f) | 25 | 50 | 6% | 
+
+
+
 ## Conclusion.
 It was fun to see how fast this algorithm could run on a modern CPU. One minute is a pretty nice result.
 
