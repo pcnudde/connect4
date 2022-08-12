@@ -111,7 +111,6 @@ class TranspositionTable : public TableGetter<key_t, value_t> {
   TranspositionTable() {
     K = new partial_key_t[size];
     V = new value_t[size];
-    reset();
   }
 
   ~TranspositionTable() {

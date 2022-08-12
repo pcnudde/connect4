@@ -86,11 +86,15 @@ My guess is that a totally different approach is needed to go faster. Don't do a
 | Final| 40 | 56 | 1% | 
 
 
-## Step 6. Feedback from Kaggle.
+## Step 6. Feedback from Kaggle and final optimizations.
 I posted this on kaggle and got some new ideas from Tony Robinson:
 
 * Exploit symmetry in opening position. We only have to evaluate 4 positions and not all 7. 3 second gain. But we can probably leverage more threads later in the compute as we have 8 cores.
 * [MTD(f)](https://people.csail.mit.edu/plaat/mtdf.html) 
+
+I also found a few more improvements:
+* Not resetting the transposition table to zero. 1 second gain
+* Add some extra multithreading in the negamax to use more cores. 8 more seconds
 
 
 | Experiment | Memory (GB) | Duration (sec) | Speedup
@@ -102,6 +106,8 @@ I posted this on kaggle and got some new ideas from Tony Robinson:
 | Final| 40 | 56 | 1% | 
 | Symmetry | 25 | 53 | 5% | 
 | MTD(f) | 25 | 50 | 6% | 
+| Final | 25 | 41 | 20% | 
+
 
 
 

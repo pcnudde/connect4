@@ -105,6 +105,93 @@ int Solver::negamax(const Position &P, int alpha, int beta) {
   return alpha;
 }
 
+
+
+/**
+ * Reccursively score connect 4 position using negamax variant of alpha-beta algorithm.
+ * @param: position to evaluate, this function assumes nobody already won and
+ *         current player cannot win next move. This has to be checked before
+ * @param: alpha < beta, a score window within which we are evaluating the position.
+ *
+ * @return the exact score, an upper or lower bound score depending of the case:
+ * - if actual score of position <= alpha then actual score <= return value <= alpha
+ * - if actual score of position >= beta then beta <= return value <= actual score
+ * - if alpha <= actual score <= beta then return value = actual score
+ */
+int Solver::negamax_par(const Position &P, int alpha, int beta) {
+  assert(alpha < beta);
+  assert(!P.canWinNext());
+
+  nodeCount++; // increment counter of explored nodes
+
+  Position::position_t possible = P.possibleNonLosingMoves();
+  if(possible == 0)     // if no possible non losing move, opponent wins next move
+    return -(Position::WIDTH * Position::HEIGHT - P.nbMoves()) / 2;
+
+  if(P.nbMoves() >= Position::WIDTH * Position::HEIGHT - 2) // check for draw game
+    return 0;
+
+  int min = -(Position::WIDTH * Position::HEIGHT - 2 - P.nbMoves()) / 2;	// lower bound of score as opponent cannot win next move
+  if(alpha < min) {
+    alpha = min;                     // there is no need to keep alpha below our max possible score.
+    if(alpha >= beta) return alpha;  // prune the exploration if the [alpha;beta] window is empty.
+  }
+
+  int max = (Position::WIDTH * Position::HEIGHT - 1 - P.nbMoves()) / 2;	// upper bound of our score as we cannot win immediately
+  if(beta > max) {
+    beta = max;                     // there is no need to keep beta above our max possible score.
+    if(alpha >= beta) return beta;  // prune the exploration if the [alpha;beta] window is empty.
+  }
+
+  const Position::position_t key = P.key();
+  if(int val = transTable.get(key)) {
+    if(val > Position::MAX_SCORE - Position::MIN_SCORE + 1) { // we have an lower bound
+      min = val + 2 * Position::MIN_SCORE - Position::MAX_SCORE - 2;
+      if(alpha < min) {
+        alpha = min;                     // there is no need to keep beta above our max possible score.
+        if(alpha >= beta) return alpha;  // prune the exploration if the [alpha;beta] window is empty.
+      }
+    } else { // we have an upper bound
+      max = val + Position::MIN_SCORE - 1;
+      if(beta > max) {
+        beta = max;                     // there is no need to keep beta above our max possible score.
+        if(alpha >= beta) return beta;  // prune the exploration if the [alpha;beta] window is empty.
+      }
+    }
+  }
+
+  if(int val = book.get(P)) return val + Position::MIN_SCORE - 1; // look for solutions stored in opening book
+
+  MoveSorter moves;
+  for(int i = Position::WIDTH; i--;)
+    if(Position::position_t move = possible & Position::column_mask(columnOrder[i]))
+      moves.add(move, P.moveScore(move));
+
+  int i = 0;
+  std::vector<std::future<int>> neg_scores_future(Position::WIDTH);
+
+  while(Position::position_t next = moves.getNext()) {
+    Position P2(P);
+    Solver *s = new Solver();
+    P2.play(next);  // It's opponent turn in P2 position after current player plays x column.
+    neg_scores_future[i] = std::async(std::launch::async,&Solver::negamax,s,P2, -beta, -alpha);
+    i++;
+  }
+
+  for (int j = 0; j<i;j++) {
+    int score = -neg_scores_future[j].get(); 
+    if(score >= beta) {
+      transTable.put(key, score + Position::MAX_SCORE - 2 * Position::MIN_SCORE + 2); // save the lower bound of the position
+      return score;  // prune the exploration if we find a possible move better than what we were looking for.
+    }
+    if(score > alpha) alpha = score; // reduce the [alpha;beta] window for next exploration, as we only
+    // need to search for a position that is better than the best so far.
+  }
+
+  transTable.put(key, alpha - Position::MIN_SCORE + 1); // save the upper bound of the position
+  return alpha;
+}
+
 int Solver::solve(const Position &P, bool weak) {
   if(P.canWinNext()) // check if win in one move as the Negamax function does not support this case.
     return (Position::WIDTH * Position::HEIGHT + 1 - P.nbMoves()) / 2;
@@ -150,7 +237,7 @@ int Solver::solveMTDF(const Position &P) {
 
   while(true) {
     int beta = (g == lowerbound) ? g+1 :g ;
-    g = negamax(P, beta - 1, beta);
+    g = (P.key() == 2097152 and beta == 0 ) ? negamax_par(P, beta - 1, beta) : negamax(P, beta - 1, beta);
     if (g < beta) upperbound=g; else lowerbound = g;
     if (lowerbound >= upperbound) break;
   }
@@ -162,7 +249,7 @@ std::vector<int> Solver::analyze(const Position &P, bool weak) {
   std::vector<int> scores(Position::WIDTH, Solver::INVALID_MOVE);
   std::vector<std::future<int>> neg_scores_future(Position::WIDTH);
   // exploit symmetry
-  for (int col = 0; col < Position::WIDTH/2+1; col++)
+  for (int col =  Position::WIDTH/2; col >=0; col--) {
     if (P.canPlay(col)) {
       if(P.isWinningMove(col)) scores[col] = (Position::WIDTH * Position::HEIGHT + 1 - P.nbMoves()) / 2;
       else {
@@ -172,6 +259,7 @@ std::vector<int> Solver::analyze(const Position &P, bool weak) {
         neg_scores_future[col] = std::async(std::launch::async,&Solver::solveMTDF,s,P2);
       }
     }
+  }
   // collect results
   for (int col = 0; col < Position::WIDTH/2+1; col++) 
     if (neg_scores_future[col].valid()) scores[col] = -neg_scores_future[col].get();

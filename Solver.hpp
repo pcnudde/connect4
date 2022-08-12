@@ -48,6 +48,7 @@ class Solver {
    * - if alpha <= actual score <= beta then return value = actual score
    */
   int negamax(const Position &P, int alpha, int beta);
+  int negamax_par(const Position &P, int alpha, int beta);
 
  public:
   static const int INVALID_MOVE = -1000;
